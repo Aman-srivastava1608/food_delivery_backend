@@ -8,16 +8,20 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// MySQL DB Connection
+// MySQL DB Connection (use environment variables)
 const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '123456',
-    database: 'food_delivery'
+    host: process.env.MYSQL_HOST,
+    user: process.env.MYSQL_USER,
+    password: process.env.MYSQL_PASSWORD,
+    database: process.env.MYSQL_DATABASE,
+    port: process.env.MYSQL_PORT || 3306
 });
 
 db.connect(err => {
-    if (err) throw err;
+    if (err) {
+        console.error('❌ DB connection failed:', err.message);
+        return;
+    }
     console.log('✅ Database connected');
 });
 
@@ -36,39 +40,12 @@ app.post('/register', (req, res) => {
     const hashedPassword = bcrypt.hashSync(password, 10);
 
     const sql = `INSERT INTO users (full_name, email, phone, address, password) VALUES (?, ?, ?, ?, ?)`;
-
     db.query(sql, [full_name, email, phone, address, hashedPassword], (err, result) => {
         if (err) {
             console.error(err);
             return res.status(500).send('Error in registration');
         }
         res.send('User registered successfully');
-    });
-});
-
-// Login API
-app.post('/login', (req, res) => {
-    const { email, password } = req.body;
-
-    const sql = 'SELECT * FROM users WHERE email = ?';
-    db.query(sql, [email], (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).send('Server error');
-        }
-
-        if (results.length === 0) {
-            return res.status(401).send('User not found');
-        }
-
-        const user = results[0];
-
-        const isMatch = bcrypt.compareSync(password, user.password);
-        if (!isMatch) {
-            return res.status(401).send('Incorrect password');
-        }
-
-        res.send('Login successful');
     });
 });
 
@@ -86,14 +63,11 @@ app.post('/login', (req, res) => {
 
         if (!isPasswordValid) return res.status(401).send('Invalid email or password');
 
-        // Send back name and message
-        res.json({ message: 'Login successful', name: user.name });
+        res.json({ message: 'Login successful', name: user.full_name });
     });
 });
 
-
-
-// Start Server
-app.listen(3000, () => {
-    console.log('🚀 Server running at http://localhost:3000');
+// Start Server (use PORT from Render)
+app.listen(process.env.PORT || 3000, () => {
+    console.log(`🚀 Server running on port ${process.env.PORT || 3000}`);
 });
