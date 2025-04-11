@@ -19,6 +19,11 @@ const db = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// ✅ Root route to test Render
+app.get('/', (req, res) => {
+  res.send('🚀 Food Delivery Backend is Running!');
+});
+
 // ✅ Register endpoint
 app.post('/register', async (req, res) => {
   const { full_name, email, phone, address, password, confirm_password } = req.body;
@@ -60,12 +65,6 @@ app.post('/login', async (req, res) => {
     console.error("❌ Login Error:", err);
     res.status(500).send('Server error');
   }
-});
-
-// ✅ Start server
-// ✅ Root route for Render test
-app.get('/', (req, res) => {
-  res.send('🚀 Food Delivery Backend is Running!');
 });
 
 // ✅ Start server
