@@ -1,5 +1,6 @@
+require('dotenv').config();
 const express = require('express');
-const mysql = require('mysql2');
+const { Pool } = require('pg');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
@@ -8,66 +9,60 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// MySQL DB Connection (use environment variables)
-const db = mysql.createConnection({
-    host: process.env.MYSQL_HOST,
-    user: process.env.MYSQL_USER,
-    password: process.env.MYSQL_PASSWORD,
-    database: process.env.MYSQL_DATABASE,
-    port: process.env.MYSQL_PORT || 3306
+// ✅ PostgreSQL connection pool
+const db = new Pool({
+  host: process.env.PGHOST,
+  user: process.env.PGUSER,
+  password: process.env.PGPASSWORD,
+  database: process.env.PGDATABASE,
+  port: process.env.PGPORT,
+  ssl: { rejectUnauthorized: false }
 });
 
-db.connect(err => {
-    if (err) {
-        console.error('❌ DB connection failed:', err.message);
-        return;
-    }
-    console.log('✅ Database connected');
+// ✅ Register endpoint
+app.post('/register', async (req, res) => {
+  const { full_name, email, phone, address, password, confirm_password } = req.body;
+
+  if (!full_name || !email || !phone || !address || !password || !confirm_password) {
+    return res.status(400).send('Please fill in all fields');
+  }
+
+  if (password !== confirm_password) {
+    return res.status(400).send('Passwords do not match');
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const query = `INSERT INTO users2 (full_name, email, phone, address, password) VALUES ($1, $2, $3, $4, $5)`;
+    await db.query(query, [full_name, email, phone, address, hashedPassword]);
+    res.send('User registered successfully');
+  } catch (err) {
+    console.error("❌ Registration Error:", err);
+    res.status(500).send('Error in registration');
+  }
 });
 
-// Register API
-app.post('/register', (req, res) => {
-    const { full_name, email, phone, address, password, confirm_password } = req.body;
+// ✅ Login endpoint
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
 
-    if (!full_name || !email || !phone || !address || !password || !confirm_password) {
-        return res.status(400).send('Please fill in all fields');
-    }
+  try {
+    const result = await db.query(`SELECT * FROM users2 WHERE email = $1`, [email]);
+    const user = result.rows[0];
 
-    if (password !== confirm_password) {
-        return res.status(400).send('Passwords do not match');
-    }
+    if (!user) return res.status(401).send('Invalid email or password');
 
-    const hashedPassword = bcrypt.hashSync(password, 10);
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) return res.status(401).send('Invalid email or password');
 
-    const sql = `INSERT INTO users (full_name, email, phone, address, password) VALUES (?, ?, ?, ?, ?)`;
-    db.query(sql, [full_name, email, phone, address, hashedPassword], (err, result) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).send('Error in registration');
-        }
-        res.send('User registered successfully');
-    });
+    res.json({ message: 'Login successful', name: user.full_name });
+  } catch (err) {
+    console.error("❌ Login Error:", err);
+    res.status(500).send('Server error');
+  }
 });
 
-// Login API
-app.post('/login', (req, res) => {
-    const { email, password } = req.body;
-
-    const sql = 'SELECT * FROM users WHERE email = ?';
-    db.query(sql, [email], (err, results) => {
-        if (err) return res.status(500).send('Server error');
-        if (results.length === 0) return res.status(401).send('Invalid email or password');
-
-        const user = results[0];
-        const isPasswordValid = bcrypt.compareSync(password, user.password);
-
-        if (!isPasswordValid) return res.status(401).send('Invalid email or password');
-
-        res.json({ message: 'Login successful', name: user.full_name });
-    });
-});
-
-// Start Server (use PORT from Render)
+// ✅ Start server
 app.listen(process.env.PORT || 3000, () => {
-    console.log(`🚀 Server running on port ${process.env.PORT || 3000}`);
+  console.log(`🚀 Server running on port ${process.env.PORT || 3000}`);
 });
