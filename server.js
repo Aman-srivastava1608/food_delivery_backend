@@ -63,6 +63,12 @@ app.post('/login', async (req, res) => {
 });
 
 // ✅ Start server
+// ✅ Root route for Render test
+app.get('/', (req, res) => {
+  res.send('🚀 Food Delivery Backend is Running!');
+});
+
+// ✅ Start server
 app.listen(process.env.PORT || 3000, () => {
   console.log(`🚀 Server running on port ${process.env.PORT || 3000}`);
 });
